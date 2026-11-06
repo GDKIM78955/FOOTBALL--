@@ -72,6 +72,33 @@ def render_clipboard_component(html_content, component_id, height=520):
 
 
 # =========================================================
+# 🎨 역할별 배지 스타일 생성 헬퍼 함수
+# =========================================================
+def get_role_badge_html(role):
+    role_str = str(role).strip() if role else "-"
+    
+    # 역할별 배경색 및 텍스트 색상 매핑
+    if "핵심" in role_str:
+        bg_color = "#7c3aed"  # 진한 보라색 (핵심 주전)
+    elif "주전" in role_str:
+        bg_color = "#ef4444"  # 빨간색 (주전)
+    elif "로테이션" in role_str:
+        bg_color = "#2563eb"  # 파란색 (로테이션)
+    elif "백업" in role_str:
+        bg_color = "#475569"  # 진회색/슬레이트 (백업)
+    elif "유망주" in role_str:
+        bg_color = "#10b981"  # 에메랄드 초록색 (유망주)
+    else:
+        bg_color = "#94a3b8"  # 연회색 (기타)
+
+    return (
+        f"<span style='background-color: {bg_color}; color: #ffffff; "
+        f"padding: 2px 6px; border-radius: 4px; font-size: 10px; "
+        f"font-weight: bold; display: inline-block; margin-top: 2px;'>{role_str}</span>"
+    )
+
+
+# =========================================================
 # 🚑 부상자 인포그래픽 도표 생성 함수 (결장자 전용)
 # =========================================================
 def generate_naver_injury_infographic(team_name, league_title, confirmed_list, doubt_list):
@@ -129,12 +156,12 @@ def generate_naver_injury_infographic(team_name, league_title, confirmed_list, d
             note = p.get("특이사항", "-")
             note_str = f"<br><span style='font-size: 10px; color: #64748b;'>({note})</span>" if note != "-" else ""
 
-            role_badge = f"<span style='background-color: #ef4444; color: white; padding: 1px 5px; border-radius: 3px; font-size: 10px;'>{role}</span>" if "주전" in str(role) else f"<span style='background-color: #64748b; color: white; padding: 1px 5px; border-radius: 3px; font-size: 10px;'>{role}</span>"
+            role_badge = get_role_badge_html(role)
 
             html += f"""
                     <tr>
                         <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; text-align: center;">{name_str}</td>
-                        <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; text-align: center;">`{pos}`<br>{role_badge}</td>
+                        <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; text-align: center;"><b>{pos}</b><br>{role_badge}</td>
                         <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; text-align: center;">{start}선발 {sub}교체<br><b>{goals}골 {assists}도움</b></td>
                         <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; color: #dc2626; text-align: center;"><b>{reason}</b>{note_str}</td>
                     </tr>
@@ -166,12 +193,12 @@ def generate_naver_injury_infographic(team_name, league_title, confirmed_list, d
             note = p.get("특이사항", "-")
             note_str = f"<br><span style='font-size: 10px; color: #64748b;'>({note})</span>" if note != "-" else ""
 
-            role_badge = f"<span style='background-color: #f59e0b; color: white; padding: 1px 5px; border-radius: 3px; font-size: 10px;'>{role}</span>"
+            role_badge = get_role_badge_html(role)
 
             html += f"""
                     <tr>
                         <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; text-align: center;">{name_str}</td>
-                        <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; text-align: center;">`{pos}`<br>{role_badge}</td>
+                        <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; text-align: center;"><b>{pos}</b><br>{role_badge}</td>
                         <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; text-align: center;">{start}선발 {sub}교체<br><b>{goals}골 {assists}도움</b></td>
                         <td align="center" style="padding: 6px 3px; border: 1px solid #e2e8f0; color: #d97706; text-align: center;"><b>{reason}</b>{note_str}</td>
                     </tr>
