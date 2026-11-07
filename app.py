@@ -165,9 +165,9 @@ all_known_teams.update(fallback_teams)
 team_options = sorted([str(t).strip() for t in all_known_teams if str(t).strip() and str(t).strip() != "nan"])
 
 # =========================================================
-# 🎯 팀 & 대회(리그/챔스 등) 멀티 필터 영역
+# 🎯 팀 & 대회(리그/챔스/에레디비지에/챔피언십/직접입력) 멀티 필터 영역
 # =========================================================
-c_s1, c_s2, c_s3 = st.columns([1.2, 1, 1.3])
+c_s1, c_s2, c_s3 = st.columns([1.1, 1.2, 1.2])
 default_inj_idx = 0
 if "selected_scan_match" in st.session_state and st.session_state.selected_scan_match:
     sm = st.session_state.selected_scan_match
@@ -176,54 +176,101 @@ if "selected_scan_match" in st.session_state and st.session_state.selected_scan_
 
 selected_team = c_s1.selectbox("1️⃣ 조회할 팀명 선택", team_options, index=default_inj_idx, key="inj_filter_team")
 
-# 선택한 팀에 등록된 대회(리그명) 목록 추출 + 기본 대회 옵션 제공
-base_competitions = ["PL", "UCL", "UEL", "UECL", "LaLiga", "SerieA", "Bundesliga", "Ligue1", "컵대회"]
+# 1) 기본 제공 대회 프리셋 (챔피언십 및 에레디비지에 포함)
+base_competitions = [
+    "PL", "EFL", "챔피언십", "Eredivisie", "에레디비지에",
+    "UCL", "UEL", "UECL",
+    "LaLiga", "SerieA", "Bundesliga", "Ligue1", "컵대회"
+]
+
+# 2) 현재 선택한 팀에 이미 등록된 대회(리그명) 최우선 추출
 team_competitions = []
 if not df_injuries.empty and team_col_name and league_col_name:
     team_rows = df_injuries[df_injuries[team_col_name].astype(str).str.strip() == str(selected_team).strip()]
-    team_competitions = [str(x).strip() for x in team_rows[league_col_name].dropna().unique() if str(x).strip()]
+    team_competitions = [str(x).strip() for x in team_rows[league_col_name].dropna().unique() if str(x).strip() and str(x).strip() != "nan"]
 
+# 3) 시트 전체(부상자명단 + 경기내용)에 한 번이라도 입력된 모든 리그명 자동 추출
+sheet_all_competitions = []
+if not df_injuries.empty and league_col_name:
+    sheet_all_competitions += [str(x).strip() for x in df_injuries[league_col_name].dropna().unique() if str(x).strip() and str(x).strip() != "nan"]
+if not df_stats_red.empty and lg_col_name in df_stats_red.columns:
+    sheet_all_competitions += [str(x).strip() for x in df_stats_red[lg_col_name].dropna().unique() if str(x).strip() and str(x).strip() != "nan"]
+
+# 순서: [현재 팀에 등록된 대회] -> [시트에 존재하는 모든 대회] -> [기본 프리셋 대회] -> [전체 보기] -> [직접 입력]
 comp_options = []
-for c in team_competitions + base_competitions:
+for c in team_competitions + sheet_all_competitions + base_competitions:
     if c not in comp_options:
         comp_options.append(c)
 comp_options.append("전체 보기 (통합)")
+comp_options.append("➕ 직접 입력 (새 대회/리그)")
 
-selected_comp = c_s2.selectbox(
+selected_comp_raw = c_s2.selectbox(
     "2️⃣ 대회/리그 기준 선택 (스탯 분리)",
     comp_options,
     index=0,
-    help="같은 팀이라도 리그용(PL)과 챔스용(UCL) 스탯을 분리해서 관리하고 조회할 수 있습니다."
+    help="현재 팀에 등록된 대회가 맨 위에 자동으로 표시되며, 목록에 없는 대회는 '➕ 직접 입력'을 선택해 바로 추가할 수 있습니다."
 )
 
-# 대회 선택 시 인포그래픽 상단 기준 표기 자동 추천
+if selected_comp_raw == "➕ 직접 입력 (새 대회/리그)":
+    custom_comp_input = c_s2.text_input("새 대회/리그명 입력", placeholder="예: K리그1, 포르투갈리그 등", key="custom_comp_top")
+    selected_comp = custom_comp_input.strip() if custom_comp_input.strip() else "기타리그"
+else:
+    selected_comp = selected_comp_raw
+
+# 대회 선택 시 인포그래픽 상단 기준 표기 자동 추천 (영문/한글 약칭 모두 대응)
 auto_title_map = {
-    "PL": "잉글랜드 1부리그 기록",
+    "PL": "잉글랜드 1부리그(PL) 기록",
+    "EPL": "잉글랜드 1부리그(PL) 기록",
+    "EFL": "잉글랜드 챔피언십(2부) 기록",
+    "챔피언십": "잉글랜드 챔피언십(2부) 기록",
+    "CHAMPIONSHIP": "잉글랜드 챔피언십(2부) 기록",
+    "EREDIVISIE": "네덜란드 에레디비지에 기록",
+    "에레디비지에": "네덜란드 에레디비지에 기록",
+    "ED": "네덜란드 에레디비지에 기록",
     "UCL": "UEFA 챔피언스리그 기록",
+    "챔스": "UEFA 챔피언스리그 기록",
     "UEL": "UEFA 유로파리그 기록",
+    "유로파": "UEFA 유로파리그 기록",
     "UECL": "UEFA 컨퍼런스리그 기록",
-    "LaLiga": "스페인 라리가 기록",
-    "SerieA": "이탈리아 세리에A 기록",
-    "Bundesliga": "독일 분데스리가 기록",
-    "Ligue1": "프랑스 리그1 기록",
+    "LALIGA": "스페인 라리가 기록",
+    "라리가": "스페인 라리가 기록",
+    "SERIEA": "이탈리아 세리에A 기록",
+    "세리에A": "이탈리아 세리에A 기록",
+    "BUNDESLIGA": "독일 분데스리가 기록",
+    "분데스리가": "독일 분데스리가 기록",
+    "LIGUE1": "프랑스 리그1 기록",
+    "리그1": "프랑스 리그1 기록",
     "컵대회": "자국 컵대회 기록",
     "전체 보기 (통합)": "시즌 통합 기록"
 }
-default_title_val = auto_title_map.get(selected_comp, f"{selected_comp} 기록")
+default_title_val = auto_title_map.get(selected_comp.upper(), auto_title_map.get(selected_comp, f"{selected_comp} 기록"))
 inj_league_title = c_s3.text_input("3️⃣ 카드 리포트 기준 표기", value=default_title_val)
 
-# 역할 프리셋 목록 (요청사항 1번: 드롭다운 선택형)
+# 역할 프리셋 목록
 ROLE_OPTIONS = ["주전", "핵심 주전", "로테이션", "백업", "유망주", "기타"]
 
 col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
 
-# 2. 새로운 결장 선수 추가
+# 2. 새로운 결장 선수 추가 (대회 선택 + 직접 입력 지원)
 with col_btn1:
     with st.expander("➕ 결장 선수 추가", expanded=False):
         f_s1, f_s2, f_s3 = st.columns(3)
         add_season = f_s1.text_input("시즌", value="25-26", key="add_inj_season")
-        default_add_comp = "PL" if selected_comp == "전체 보기 (통합)" else selected_comp
-        add_league = f_s2.text_input("대회/리그명", value=default_add_comp, key="add_inj_league")
+        
+        # 추가할 때 대회 선택 드롭다운 (상단에서 고른 대회가 기본값으로 자동 세팅됨)
+        add_comp_list = [c for c in comp_options if c not in ["전체 보기 (통합)", "➕ 직접 입력 (새 대회/리그)"]]
+        if selected_comp not in ["전체 보기 (통합)", "➕ 직접 입력 (새 대회/리그)"] and selected_comp not in add_comp_list:
+            add_comp_list.insert(0, selected_comp)
+        add_comp_list.append("➕ 직접 입력")
+
+        default_add_idx = add_comp_list.index(selected_comp) if selected_comp in add_comp_list else 0
+        sel_add_league = f_s2.selectbox("대회/리그 선택", add_comp_list, index=default_add_idx, key="add_inj_league_sel")
+        
+        if sel_add_league == "➕ 직접 입력":
+            add_league = f_s2.text_input("새 대회명 직접 입력", placeholder="예: 에레디비지에, 챔피언십", key="add_inj_league_custom")
+        else:
+            add_league = sel_add_league
+
         add_team = f_s3.text_input("팀명", value=selected_team, key="add_inj_team")
 
         f1, f2, f3 = st.columns(3)
@@ -238,13 +285,14 @@ with col_btn1:
         p_assists = f7.number_input("도움", min_value=0, value=0, key="p_assists")
 
         f8, f9, f10 = st.columns(3)
-        # 요청사항 1번: 팀 내 역할을 Selectbox로 선택
         p_role = f8.selectbox("팀 내 역할", ROLE_OPTIONS, index=0, key="p_role")
         p_reason = f9.selectbox("결장 사유", ["부상", "결장의심", "징계/퇴장", "기타"], key="p_reason")
         p_note = f10.text_input("특이사항", value="-", placeholder="예: 복귀 예정 10월", key="p_note")
 
         if st.button("💾 구글 시트에 저장", type="primary", use_container_width=True):
-            if p_name_en.strip() or p_name_kr.strip():
+            if not add_league.strip():
+                st.warning("대회/리그명을 입력해 주세요.")
+            elif p_name_en.strip() or p_name_kr.strip():
                 client = get_gspread_client()
                 if client:
                     try:
@@ -302,8 +350,17 @@ with col_btn2:
                 target_row_data = filtered_df_edit.loc[sel_idx]
 
                 e_col1, e_col2 = st.columns(2)
-                curr_lg_val = str(target_row_data.get(league_col_name, "PL")) if league_col_name else "PL"
-                e_league = e_col1.text_input("대회/리그명 수정", value=curr_lg_val, key=f"edit_lg_{sel_idx}")
+                curr_lg_val = str(target_row_data.get(league_col_name, "PL")).strip() if league_col_name else "PL"
+                edit_comp_options = [c for c in comp_options if c not in ["전체 보기 (통합)", "➕ 직접 입력 (새 대회/리그)"]]
+                if curr_lg_val not in edit_comp_options:
+                    edit_comp_options.insert(0, curr_lg_val)
+                edit_comp_options.append("➕ 직접 입력")
+
+                sel_edit_lg = e_col1.selectbox("대회/리그명 수정", edit_comp_options, index=edit_comp_options.index(curr_lg_val), key=f"edit_lg_sel_{sel_idx}")
+                if sel_edit_lg == "➕ 직접 입력":
+                    e_league = e_col1.text_input("새 대회명 입력", value=curr_lg_val, key=f"edit_lg_custom_{sel_idx}")
+                else:
+                    e_league = sel_edit_lg
                 
                 pos_list = ["FW", "MF", "DF", "GK"]
                 curr_pos = str(target_row_data.get("포지션", target_row_data.get(df_injuries.columns[5], "MF")))
@@ -319,7 +376,6 @@ with col_btn2:
                 e_goals = e3.number_input("골", min_value=0, value=int(target_row_data.get("골", target_row_data.get(df_injuries.columns[8], 0)) or 0), key=f"edit_goals_{sel_idx}")
                 e_assists = e4.number_input("도움", min_value=0, value=int(target_row_data.get("도움", target_row_data.get(df_injuries.columns[9], 0)) or 0), key=f"edit_assists_{sel_idx}")
 
-                # 요청사항 1번: 수정 시에도 팀 내 역할을 Selectbox로 선택 (기존 텍스트 호환)
                 curr_role = str(target_row_data.get("역할", target_row_data.get(df_injuries.columns[10], "주전"))).strip()
                 dynamic_role_options = ROLE_OPTIONS if curr_role in ROLE_OPTIONS else [curr_role] + ROLE_OPTIONS
                 e_role = st.selectbox("팀 내 역할 수정", dynamic_role_options, index=dynamic_role_options.index(curr_role), key=f"edit_role_{sel_idx}")
@@ -365,19 +421,31 @@ with col_btn2:
         else:
             st.info("시트에 등록된 선수 데이터가 없습니다.")
 
-# 4. 요청사항 2번: 타 대회용(예: PL -> UCL) 결장 명단 일괄 복제 기능
+# 4. 타 대회용(예: 에레디비지에 -> UCL 등) 결장 명단 일괄 복제 기능
 with col_btn3:
     with st.expander("⚡ 타 대회용 명단 복제", expanded=False):
-        st.caption("다친 선수는 동일한데 챔스/컵대회 스탯만 다르게 써야 할 때, 기존 대회 명단을 새 대회용으로 1초 만에 복사합니다.")
+        st.caption("다친 선수는 동일한데 챔스/유로파/컵대회 스탯만 다르게 써야 할 때, 기존 대회 명단을 새 대회용으로 1초 만에 복사합니다.")
         if not df_injuries.empty and team_col_name and league_col_name and team_competitions:
             src_comp = st.selectbox("가져올 원본 대회", team_competitions, key="clone_src_comp")
-            dst_comp = st.selectbox("생성할 대상 대회", ["UCL", "UEL", "UECL", "PL", "컵대회", "직접입력"], key="clone_dst_comp")
-            if dst_comp == "직접입력":
+            
+            clone_target_list = ["UCL", "UEL", "UECL", "PL", "EFL", "챔피언십", "Eredivisie", "에레디비지에", "컵대회"]
+            for c in comp_options:
+                if c not in clone_target_list and c not in ["전체 보기 (통합)", "➕ 직접 입력 (새 대회/리그)"]:
+                    clone_target_list.append(c)
+            clone_target_list.append("➕ 직접 입력")
+
+            dst_comp_sel = st.selectbox("생성할 대상 대회", clone_target_list, key="clone_dst_comp")
+            if dst_comp_sel == "➕ 직접 입력":
                 dst_comp = st.text_input("대상 대회명 직접 입력", value="FA컵", key="clone_dst_custom")
+            else:
+                dst_comp = dst_comp_sel
+
             reset_stats = st.checkbox("출전/골/도움 스탯 0으로 초기화해서 복사", value=True, help="체크하면 새 대회 스탯을 0선발 0교체 0골 0도움으로 깔끔하게 비워서 생성합니다.")
 
             if st.button("🚀 명단 일괄 복제하기", type="primary", use_container_width=True):
-                if src_comp == dst_comp:
+                if not dst_comp.strip():
+                    st.warning("대상 대회명을 입력해 주세요.")
+                elif src_comp == dst_comp.strip():
                     st.warning("원본 대회와 대상 대회가 같습니다.")
                 else:
                     src_rows = df_injuries[
@@ -446,7 +514,6 @@ with col_btn4:
                                 ws_inj = spreadsheet.worksheet(injury_sheet_name)
                                 
                                 if del_all_comps:
-                                    # 같은 팀 내 동일 이름 선수 행 모두 찾아서 역순 삭제 (행 밀림 방지)
                                     target_kr, target_en = sel_player_to_remove[2], sel_player_to_remove[3]
                                     team_all_rows = df_injuries[df_injuries[team_col_name].astype(str).str.strip() == str(selected_team).strip()]
                                     rows_to_del = []
