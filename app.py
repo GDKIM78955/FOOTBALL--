@@ -249,12 +249,15 @@ inj_league_title = c_s3.text_input("3️⃣ 카드 리포트 기준 표기", val
 # 역할 프리셋 목록
 ROLE_OPTIONS = ["주전", "핵심 주전", "로테이션", "백업", "유망주", "기타"]
 
-col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+# =========================================================
+# 🛠️ 선수 관리 영역 (3단 와이드 배치: 왼쪽 추가 칸을 1.8배로 대폭 확대)
+# =========================================================
+col_btn1, col_btn2, col_btn3 = st.columns([1.8, 1.2, 1.0])
 
-# 2. 새로운 결장 선수 추가 (대회 선택 + 직접 입력 지원)
+# [왼쪽 넓은 칸] 새로운 결장 선수 추가
 with col_btn1:
-    with st.expander("➕ 결장 선수 추가", expanded=False):
-        f_s1, f_s2, f_s3 = st.columns(3)
+    with st.expander("➕ 결장 선수 추가 (넓은 입력창)", expanded=False):
+        f_s1, f_s2, f_s3 = st.columns([0.8, 1.2, 1.2])
         add_season = f_s1.text_input("시즌", value="25-26", key="add_inj_season")
         
         # 추가할 때 대회 선택 드롭다운 (상단에서 고른 대회가 기본값으로 자동 세팅됨)
@@ -273,7 +276,8 @@ with col_btn1:
 
         add_team = f_s3.text_input("팀명", value=selected_team, key="add_inj_team")
 
-        f1, f2, f3 = st.columns(3)
+        # 영문명/한글명 입력칸 비율 확대 (1.4 : 1.4 : 0.7)
+        f1, f2, f3 = st.columns([1.4, 1.4, 0.7])
         p_name_en = f1.text_input("선수 영문명", placeholder="예: Lucas Paquetá", key="p_name_en")
         p_name_kr = f2.text_input("선수 한글명", placeholder="예: 루카스 파케타", key="p_name_kr")
         p_pos = f3.selectbox("포지션", ["FW", "MF", "DF", "GK"], key="p_pos")
@@ -284,7 +288,7 @@ with col_btn1:
         p_goals = f6.number_input("골", min_value=0, value=0, key="p_goals")
         p_assists = f7.number_input("도움", min_value=0, value=0, key="p_assists")
 
-        f8, f9, f10 = st.columns(3)
+        f8, f9, f10 = st.columns([1, 1, 1.5])
         p_role = f8.selectbox("팀 내 역할", ROLE_OPTIONS, index=0, key="p_role")
         p_reason = f9.selectbox("결장 사유", ["부상", "결장의심", "징계/퇴장", "기타"], key="p_reason")
         p_note = f10.text_input("특이사항", value="-", placeholder="예: 복귀 예정 10월", key="p_note")
@@ -318,111 +322,9 @@ with col_btn1:
             else:
                 st.warning("선수 이름을 입력해 주세요.")
 
-# 3. 부상 선수 정보 수정하기 (현재 선택된 팀 + 대회 기준)
+# [가운데 칸] 위: 타 대회용 명단 복제 / 아래: 선수 정보 및 스탯 수정
 with col_btn2:
-    with st.expander("✏️ 선수 정보/스탯 수정", expanded=False):
-        if not df_injuries.empty and team_col_name:
-            filtered_df_edit = df_injuries[df_injuries[team_col_name].astype(str).str.strip() == str(selected_team).strip()]
-            if selected_comp != "전체 보기 (통합)" and league_col_name:
-                filtered_df_edit = filtered_df_edit[filtered_df_edit[league_col_name].astype(str).str.strip() == str(selected_comp).strip()]
-
-            if not filtered_df_edit.empty:
-                edit_player_ids = []
-                edit_player_labels = {}
-                for idx, row in filtered_df_edit.iterrows():
-                    lg_tag = row.get(league_col_name, "") if league_col_name else ""
-                    kr = row.get("선수한글명", row.get(df_injuries.columns[4], ""))
-                    en = row.get("선수영문명", row.get(df_injuries.columns[3], ""))
-                    disp_name = f"[{lg_tag}] {kr} ({en})" if kr and en else f"[{lg_tag}] {kr or en}"
-                    edit_player_ids.append(idx)
-                    edit_player_labels[idx] = disp_name
-
-                if "edit_selected_idx" not in st.session_state or st.session_state.edit_selected_idx not in edit_player_ids:
-                    st.session_state.edit_selected_idx = edit_player_ids[0]
-
-                sel_idx = st.selectbox(
-                    "수정할 선수 선택", 
-                    edit_player_ids, 
-                    format_func=lambda x: edit_player_labels[x], 
-                    key="edit_selected_idx"
-                )
-                
-                target_row_data = filtered_df_edit.loc[sel_idx]
-
-                e_col1, e_col2 = st.columns(2)
-                curr_lg_val = str(target_row_data.get(league_col_name, "PL")).strip() if league_col_name else "PL"
-                edit_comp_options = [c for c in comp_options if c not in ["전체 보기 (통합)", "➕ 직접 입력 (새 대회/리그)"]]
-                if curr_lg_val not in edit_comp_options:
-                    edit_comp_options.insert(0, curr_lg_val)
-                edit_comp_options.append("➕ 직접 입력")
-
-                sel_edit_lg = e_col1.selectbox("대회/리그명 수정", edit_comp_options, index=edit_comp_options.index(curr_lg_val), key=f"edit_lg_sel_{sel_idx}")
-                if sel_edit_lg == "➕ 직접 입력":
-                    e_league = e_col1.text_input("새 대회명 입력", value=curr_lg_val, key=f"edit_lg_custom_{sel_idx}")
-                else:
-                    e_league = sel_edit_lg
-                
-                pos_list = ["FW", "MF", "DF", "GK"]
-                curr_pos = str(target_row_data.get("포지션", target_row_data.get(df_injuries.columns[5], "MF")))
-                pos_idx = pos_list.index(curr_pos) if curr_pos in pos_list else 1
-                e_pos = e_col2.selectbox("포지션 수정", pos_list, index=pos_idx, key=f"edit_pos_{sel_idx}")
-
-                e_kr = st.text_input("선수 한글명 수정", value=str(target_row_data.get("선수한글명", target_row_data.get(df_injuries.columns[4], ""))), key=f"edit_kr_{sel_idx}")
-                e_en = st.text_input("선수 영문명 수정", value=str(target_row_data.get("선수영문명", target_row_data.get(df_injuries.columns[3], ""))), key=f"edit_en_{sel_idx}")
-
-                e1, e2, e3, e4 = st.columns(4)
-                e_start = e1.number_input("선발", min_value=0, value=int(target_row_data.get("선발", target_row_data.get(df_injuries.columns[6], 0)) or 0), key=f"edit_start_{sel_idx}")
-                e_sub = e2.number_input("교체", min_value=0, value=int(target_row_data.get("교체", target_row_data.get(df_injuries.columns[7], 0)) or 0), key=f"edit_sub_{sel_idx}")
-                e_goals = e3.number_input("골", min_value=0, value=int(target_row_data.get("골", target_row_data.get(df_injuries.columns[8], 0)) or 0), key=f"edit_goals_{sel_idx}")
-                e_assists = e4.number_input("도움", min_value=0, value=int(target_row_data.get("도움", target_row_data.get(df_injuries.columns[9], 0)) or 0), key=f"edit_assists_{sel_idx}")
-
-                curr_role = str(target_row_data.get("역할", target_row_data.get(df_injuries.columns[10], "주전"))).strip()
-                dynamic_role_options = ROLE_OPTIONS if curr_role in ROLE_OPTIONS else [curr_role] + ROLE_OPTIONS
-                e_role = st.selectbox("팀 내 역할 수정", dynamic_role_options, index=dynamic_role_options.index(curr_role), key=f"edit_role_{sel_idx}")
-                
-                reason_list = ["부상", "결장의심", "징계/퇴장", "기타"]
-                curr_reason = str(target_row_data.get("결장사유", target_row_data.get("사유", target_row_data.get(df_injuries.columns[11], "부상"))))
-                reason_idx = reason_list.index(curr_reason) if curr_reason in reason_list else 0
-                e_reason = st.selectbox("결장 사유 수정", reason_list, index=reason_idx, key=f"edit_reason_{sel_idx}")
-                
-                e_note = st.text_input("특이사항 수정", value=str(target_row_data.get("특이사항", target_row_data.get(df_injuries.columns[12], "-"))), key=f"edit_note_{sel_idx}")
-
-                if st.button("🔄 정보 갱신하기", type="primary", use_container_width=True):
-                    client = get_gspread_client()
-                    if client:
-                        try:
-                            spreadsheet = client.open_by_key(spreadsheet_id)
-                            ws_inj = spreadsheet.worksheet(injury_sheet_name)
-                            
-                            updated_row_values = [
-                                str(target_row_data.get("시즌", "25-26")),
-                                e_league.strip(),
-                                str(selected_team),
-                                e_en.strip(),
-                                e_kr.strip(),
-                                e_pos,
-                                e_start,
-                                e_sub,
-                                e_goals,
-                                e_assists,
-                                e_role,
-                                e_reason,
-                                e_note.strip() if e_note.strip() else "-"
-                            ]
-                            ws_inj.update(f"A{sel_idx + 2}:M{sel_idx + 2}", [updated_row_values], value_input_option="USER_ENTERED")
-                            time.sleep(0.3)
-                            st.cache_data.clear()
-                            st.success(f"🎉 [{e_kr or e_en}] 선수의 정보가 수정되었습니다!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"수정 실패: {e}")
-            else:
-                st.info(f"현재 [{selected_team} - {selected_comp}]에 수정할 선수가 없습니다.")
-        else:
-            st.info("시트에 등록된 선수 데이터가 없습니다.")
-
-# 4. 타 대회용(예: 에레디비지에 -> UCL 등) 결장 명단 일괄 복제 기능
-with col_btn3:
+    # 1) 타 대회용 결장 명단 일괄 복제 기능 (위쪽 배치)
     with st.expander("⚡ 타 대회용 명단 복제", expanded=False):
         st.caption("다친 선수는 동일한데 챔스/유로파/컵대회 스탯만 다르게 써야 할 때, 기존 대회 명단을 새 대회용으로 1초 만에 복사합니다.")
         if not df_injuries.empty and team_col_name and league_col_name and team_competitions:
@@ -485,8 +387,113 @@ with col_btn3:
         else:
             st.info(f"[{selected_team}]에 먼저 기본 대회 결장자를 1명 이상 등록해 주세요.")
 
-# 5. 복귀 선수 제외 (삭제 - 모든 대회 동시 복귀 옵션 포함)
-with col_btn4:
+    # 2) 부상 선수 정보 수정하기 (타 대회용 명단 복제 바로 밑으로 이동)
+    with st.expander("✏️ 선수 정보/스탯 수정", expanded=False):
+        if not df_injuries.empty and team_col_name:
+            filtered_df_edit = df_injuries[df_injuries[team_col_name].astype(str).str.strip() == str(selected_team).strip()]
+            if selected_comp != "전체 보기 (통합)" and league_col_name:
+                filtered_df_edit = filtered_df_edit[filtered_df_edit[league_col_name].astype(str).str.strip() == str(selected_comp).strip()]
+
+            if not filtered_df_edit.empty:
+                edit_player_ids = []
+                edit_player_labels = {}
+                for idx, row in filtered_df_edit.iterrows():
+                    lg_tag = row.get(league_col_name, "") if league_col_name else ""
+                    kr = row.get("선수한글명", row.get(df_injuries.columns[4], ""))
+                    en = row.get("선수영문명", row.get(df_injuries.columns[3], ""))
+                    disp_name = f"[{lg_tag}] {kr} ({en})" if kr and en else f"[{lg_tag}] {kr or en}"
+                    edit_player_ids.append(idx)
+                    edit_player_labels[idx] = disp_name
+
+                if "edit_selected_idx" not in st.session_state or st.session_state.edit_selected_idx not in edit_player_ids:
+                    st.session_state.edit_selected_idx = edit_player_ids[0]
+
+                sel_idx = st.selectbox(
+                    "수정할 선수 선택", 
+                    edit_player_ids, 
+                    format_func=lambda x: edit_player_labels[x], 
+                    key="edit_selected_idx"
+                )
+                
+                target_row_data = filtered_df_edit.loc[sel_idx]
+
+                e_col1, e_col2 = st.columns(2)
+                curr_lg_val = str(target_row_data.get(league_col_name, "PL")).strip() if league_col_name else "PL"
+                edit_comp_options = [c for c in comp_options if c not in ["전체 보기 (통합)", "➕ 직접 입력 (새 대회/리그)"]]
+                if curr_lg_val not in edit_comp_options:
+                    edit_comp_options.insert(0, curr_lg_val)
+                edit_comp_options.append("➕ 직접 입력")
+
+                sel_edit_lg = e_col1.selectbox("대회/리그명 수정", edit_comp_options, index=edit_comp_options.index(curr_lg_val), key=f"edit_lg_sel_{sel_idx}")
+                if sel_edit_lg == "➕ 직접 입력":
+                    e_league = e_col1.text_input("새 대회명 입력", value=curr_lg_val, key=f"edit_lg_custom_{sel_idx}")
+                else:
+                    e_league = sel_edit_lg
+                
+                pos_list = ["FW", "MF", "DF", "GK"]
+                curr_pos = str(target_row_data.get("포지션", target_row_data.get(df_injuries.columns[5], "MF")))
+                pos_idx = pos_list.index(curr_pos) if curr_pos in pos_list else 1
+                e_pos = e_col2.selectbox("포지션 수정", pos_list, index=pos_idx, key=f"edit_pos_{sel_idx}")
+
+                e_name1, e_name2 = st.columns(2)
+                e_kr = e_name1.text_input("선수 한글명 수정", value=str(target_row_data.get("선수한글명", target_row_data.get(df_injuries.columns[4], ""))), key=f"edit_kr_{sel_idx}")
+                e_en = e_name2.text_input("선수 영문명 수정", value=str(target_row_data.get("선수영문명", target_row_data.get(df_injuries.columns[3], ""))), key=f"edit_en_{sel_idx}")
+
+                e1, e2, e3, e4 = st.columns(4)
+                e_start = e1.number_input("선발", min_value=0, value=int(target_row_data.get("선발", target_row_data.get(df_injuries.columns[6], 0)) or 0), key=f"edit_start_{sel_idx}")
+                e_sub = e2.number_input("교체", min_value=0, value=int(target_row_data.get("교체", target_row_data.get(df_injuries.columns[7], 0)) or 0), key=f"edit_sub_{sel_idx}")
+                e_goals = e3.number_input("골", min_value=0, value=int(target_row_data.get("골", target_row_data.get(df_injuries.columns[8], 0)) or 0), key=f"edit_goals_{sel_idx}")
+                e_assists = e4.number_input("도움", min_value=0, value=int(target_row_data.get("도움", target_row_data.get(df_injuries.columns[9], 0)) or 0), key=f"edit_assists_{sel_idx}")
+
+                curr_role = str(target_row_data.get("역할", target_row_data.get(df_injuries.columns[10], "주전"))).strip()
+                dynamic_role_options = ROLE_OPTIONS if curr_role in ROLE_OPTIONS else [curr_role] + ROLE_OPTIONS
+                
+                er_col1, er_col2 = st.columns(2)
+                e_role = er_col1.selectbox("팀 내 역할 수정", dynamic_role_options, index=dynamic_role_options.index(curr_role), key=f"edit_role_{sel_idx}")
+                
+                reason_list = ["부상", "결장의심", "징계/퇴장", "기타"]
+                curr_reason = str(target_row_data.get("결장사유", target_row_data.get("사유", target_row_data.get(df_injuries.columns[11], "부상"))))
+                reason_idx = reason_list.index(curr_reason) if curr_reason in reason_list else 0
+                e_reason = er_col2.selectbox("결장 사유 수정", reason_list, index=reason_idx, key=f"edit_reason_{sel_idx}")
+                
+                e_note = st.text_input("특이사항 수정", value=str(target_row_data.get("특이사항", target_row_data.get(df_injuries.columns[12], "-"))), key=f"edit_note_{sel_idx}")
+
+                if st.button("🔄 정보 갱신하기", type="primary", use_container_width=True):
+                    client = get_gspread_client()
+                    if client:
+                        try:
+                            spreadsheet = client.open_by_key(spreadsheet_id)
+                            ws_inj = spreadsheet.worksheet(injury_sheet_name)
+                            
+                            updated_row_values = [
+                                str(target_row_data.get("시즌", "25-26")),
+                                e_league.strip(),
+                                str(selected_team),
+                                e_en.strip(),
+                                e_kr.strip(),
+                                e_pos,
+                                e_start,
+                                e_sub,
+                                e_goals,
+                                e_assists,
+                                e_role,
+                                e_reason,
+                                e_note.strip() if e_note.strip() else "-"
+                            ]
+                            ws_inj.update(f"A{sel_idx + 2}:M{sel_idx + 2}", [updated_row_values], value_input_option="USER_ENTERED")
+                            time.sleep(0.3)
+                            st.cache_data.clear()
+                            st.success(f"🎉 [{e_kr or e_en}] 선수의 정보가 수정되었습니다!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"수정 실패: {e}")
+            else:
+                st.info(f"현재 [{selected_team} - {selected_comp}]에 수정할 선수가 없습니다.")
+        else:
+            st.info("시트에 등록된 선수 데이터가 없습니다.")
+
+# [오른쪽 칸] 복귀 선수 제외 (삭제 - 모든 대회 동시 복귀 옵션 포함)
+with col_btn3:
     with st.expander("🗑️ 복귀 선수 제외", expanded=False):
         if not df_injuries.empty and team_col_name:
             filtered_df_rm = df_injuries[df_injuries[team_col_name].astype(str).str.strip() == str(selected_team).strip()]
