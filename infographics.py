@@ -2,15 +2,17 @@ import streamlit.components.v1 as components
 import json
 
 # =========================================================
-# 🌟 네이버 블로그 원클릭 복사 렌더러 컴포넌트
+# 🌟 네이버 블로그/카페 원클릭 복사 렌더러 (고화질 이미지 복사 + HTML 표 복사 동시 지원)
 # =========================================================
-def render_clipboard_component(html_content, component_id, height=520):
+def render_clipboard_component(html_content, component_id, height=580, team_name="팀"):
     escaped_html = json.dumps(html_content)
+    safe_team_name = json.dumps(f"{team_name}_결장자리포트.png")
     wrapper_html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <style>
             body {{
                 margin: 0;
@@ -18,40 +20,126 @@ def render_clipboard_component(html_content, component_id, height=520):
                 font-family: 'Malgun Gothic', sans-serif;
                 background-color: transparent;
             }}
-            .copy-btn {{
-                width: 100%;
-                background-color: #03c75a;
+            .btn-group {{
+                display: flex;
+                gap: 8px;
+                margin-bottom: 12px;
+                flex-wrap: wrap;
+            }}
+            .action-btn {{
+                flex: 1;
+                min-width: 180px;
                 color: #ffffff;
-                font-size: 15px;
+                font-size: 14px;
                 font-weight: bold;
-                padding: 12px;
+                padding: 12px 10px;
                 border: none;
                 border-radius: 8px;
                 cursor: pointer;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                margin-bottom: 12px;
+                box-shadow: 0 3px 5px rgba(0,0,0,0.1);
+                transition: all 0.15s ease;
             }}
-            .copy-btn:hover {{
+            .btn-img-copy {{
+                background-color: #2563eb;
+            }}
+            .btn-img-copy:hover {{
+                background-color: #1d4ed8;
+            }}
+            .btn-img-down {{
+                background-color: #475569;
+                flex: 0.5;
+                min-width: 130px;
+            }}
+            .btn-img-down:hover {{
+                background-color: #334155;
+            }}
+            .btn-html-copy {{
+                background-color: #03c75a;
+            }}
+            .btn-html-copy:hover {{
                 background-color: #02b150;
             }}
             .preview-box {{
-                background-color: #ffffff;
+                background-color: #f8fafc;
                 border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 10px;
+                padding: 16px;
                 overflow-x: auto;
+                display: flex;
+                justify-content: center;
+            }}
+            #capture-area {{
+                display: inline-block;
+                width: 100%;
+                max-width: 620px;
+                background-color: transparent;
             }}
         </style>
     </head>
     <body>
-        <button class="copy-btn" onclick="copyHtmlToClipboard()">
-            📋 [네이버 블로그/카페 서식 원클릭 복사하기] (클릭 후 블로그에 Ctrl+V)
-        </button>
+        <div class="btn-group">
+            <button class="action-btn btn-img-copy" id="imgCopyBtn" onclick="copyAsImage()">
+                📸 [추천] 로고 포함 고화질 이미지로 복사 (블로그에 Ctrl+V)
+            </button>
+            <button class="action-btn btn-img-down" onclick="downloadAsImage()">
+                📥 PNG 이미지 저장
+            </button>
+            <button class="action-btn btn-html-copy" onclick="copyHtmlToClipboard()">
+                📋 기존 표(텍스트) 서식 복사
+            </button>
+        </div>
+
         <div class="preview-box">
-            {html_content}
+            <div id="capture-area">
+                {html_content}
+            </div>
         </div>
 
         <script>
+            // 1) 2번 방식: 카드 전체를 고화질 PNG 이미지로 변환하여 클립보드에 복사
+            async function copyAsImage() {{
+                const btn = document.getElementById('imgCopyBtn');
+                const origText = btn.innerText;
+                btn.innerText = '⏳ 고화질 이미지 생성 중...';
+                try {{
+                    const target = document.getElementById('capture-area');
+                    const canvas = await html2canvas(target, {{
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor: null
+                    }});
+                    canvas.toBlob(async (blob) => {{
+                        try {{
+                            const item = new ClipboardItem({{ 'image/png': blob }});
+                            await navigator.clipboard.write([item]);
+                            btn.innerText = origText;
+                            alert('🎉 로고가 포함된 고화질 이미지 카드가 복사되었습니다!\\n블로그나 카페 글쓰기 창에서 바로 [Ctrl + V]를 누르세요.');
+                        }} catch (err) {{
+                            btn.innerText = origText;
+                            alert('브라우저 클립보드 권한이 제한되었습니다. 옆의 [📥 PNG 이미지 저장] 버튼을 이용해 주세요.');
+                        }}
+                    }}, 'image/png');
+                }} catch (e) {{
+                    btn.innerText = origText;
+                    alert('이미지 변환 중 오류가 발생했습니다: ' + e);
+                }}
+            }}
+
+            // 2) PNG 이미지 파일로 PC에 직접 다운로드
+            async function downloadAsImage() {{
+                const target = document.getElementById('capture-area');
+                const canvas = await html2canvas(target, {{
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: null
+                }});
+                const link = document.createElement('a');
+                link.download = {safe_team_name};
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }}
+
+            // 3) 기존 HTML 표 서식 복사
             function copyHtmlToClipboard() {{
                 const htmlData = {escaped_html};
                 const blobHtml = new Blob([htmlData], {{ type: 'text/html' }});
@@ -59,7 +147,7 @@ def render_clipboard_component(html_content, component_id, height=520):
                 const data = [new ClipboardItem({{ 'text/html': blobHtml, 'text/plain': blobText }})];
 
                 navigator.clipboard.write(data).then(() => {{
-                    alert('🎉 네이버 블로그/카페용 서식이 복사되었습니다! 블로그 글쓰기 창에서 [Ctrl + V]를 누르세요.');
+                    alert('🎉 네이버 블로그/카페용 표 서식이 복사되었습니다! 블로그 글쓰기 창에서 [Ctrl + V]를 누르세요.');
                 }}).catch(err => {{
                     alert('복사 권한이 제한되었습니다. 아래 미리보기 영역을 직접 드래그(Ctrl+C)해주세요.');
                 }});
@@ -77,7 +165,6 @@ def render_clipboard_component(html_content, component_id, height=520):
 def get_role_badge_html(role):
     role_str = str(role).strip() if role else "-"
     
-    # 역할별 배경색 및 텍스트 색상 매핑
     if "핵심" in role_str:
         bg_color = "#7c3aed"  # 진한 보라색 (핵심 주전)
     elif "주전" in role_str:
@@ -99,21 +186,46 @@ def get_role_badge_html(role):
 
 
 # =========================================================
-# 🚑 부상자 인포그래픽 도표 생성 함수 (결장자 전용)
+# 🚑 부상자 인포그래픽 도표 생성 함수 (구단 로고 배지 지원)
 # =========================================================
-def generate_naver_injury_infographic(team_name, league_title, confirmed_list, doubt_list):
+def generate_naver_injury_infographic(team_name, league_title, confirmed_list, doubt_list, logo_src=""):
+    # 로고가 있을 때 흰색 배경 로고가 자연스럽게 어우러지도록 둥근 테두리 액자 배지로 렌더링
+    if logo_src:
+        header_inner_html = f"""
+        <table border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto;">
+            <tr>
+                <td valign="middle" style="padding-right: 14px;">
+                    <div style="width: 58px; height: 58px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.06); overflow: hidden; padding: 4px; box-sizing: border-box;">
+                        <img src="{logo_src}" alt="{team_name}" style="max-width: 48px; max-height: 48px; object-fit: contain; display: block; margin: 0 auto;" />
+                    </div>
+                </td>
+                <td valign="middle" align="left" style="text-align: left;">
+                    <div style="font-size: 11px; font-weight: bold; color: #dc2626; letter-spacing: 1px;">INJURY & SUSPENSION REPORT</div>
+                    <div style="font-size: 19px; font-weight: bold; color: #0f172a; margin-top: 3px;">
+                        [{team_name}] 결장 및 결장의심 명단
+                    </div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 3px;">기준: <b>{league_title}</b></div>
+                </td>
+            </tr>
+        </table>
+        """
+    else:
+        header_inner_html = f"""
+        <div style="font-size: 11px; font-weight: bold; color: #dc2626; letter-spacing: 1px;">INJURY & SUSPENSION REPORT</div>
+        <div style="font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 4px;">
+            🚑 [{team_name}] 결장 및 결장의심 명단
+        </div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 4px;">기준: <b>{league_title}</b></div>
+        """
+
     html = f"""
     <table align="center" border="0" cellpadding="0" cellspacing="0" style="width: 100%; max-width: 620px; margin: 0 auto; font-family: 'Malgun Gothic', '맑은 고딕', AppleSDGothicNeo-Regular, sans-serif; background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; border-collapse: separate; color: #0f172a;">
         <tr>
             <td style="padding: 20px;">
                 <table border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-bottom: 2px solid #0f172a; margin-bottom: 16px;">
                     <tr>
-                        <td align="center" style="padding-bottom: 10px; text-align: center;">
-                            <div style="font-size: 11px; font-weight: bold; color: #dc2626; letter-spacing: 1px;">INJURY & SUSPENSION REPORT</div>
-                            <div style="font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 4px;">
-                                🚑 [{team_name}] 결장 및 결장의심 명단
-                            </div>
-                            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">기준: <b>{league_title}</b></div>
+                        <td align="center" style="padding-bottom: 12px; text-align: center;">
+                            {header_inner_html}
                         </td>
                     </tr>
                 </table>
