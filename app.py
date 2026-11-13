@@ -27,13 +27,13 @@ spreadsheet_id = st.sidebar.text_input(
     type="default"
 )
 
-# 다른 앱에서 쓰시는 폴더 ID나 폴더 이름을 기본값으로 적어두셔도 됩니다 (비워두면 전체 이미지 자동 검색)
+# 요청하신 구글 드라이브 구단 로고 폴더 링크 기본 고정 적용
 DEFAULT_LOGO_FOLDER = "https://drive.google.com/drive/folders/1jhKbgnrWEK3t0rQuP9OYTryYrI56Ujye?usp=drive_link"
 logo_folder_input = st.sidebar.text_input(
-    "📁 구단 로고 폴더 ID (또는 폴더명)",
+    "📁 구단 로고 폴더 ID (또는 폴더 링크)",
     value=DEFAULT_LOGO_FOLDER,
     placeholder="비워두면 드라이브 전체 로고 자동 인식",
-    help="구글 드라이브 로고 폴더의 주소(URL), 폴더 ID, 혹은 폴더 이름(예: 구단로고)을 입력하세요. 비워두어도 서비스 계정에 공유된 모든 로고 이미지를 자동으로 찾아냅니다."
+    help="구글 드라이브 축구구단_로고 폴더 링크가 기본으로 등록되어 있습니다."
 )
 
 # 시트 및 로고 데이터 로딩
@@ -78,7 +78,7 @@ def extract_month_day(date_str):
         return m * 100 + d
     return None
 
-# 팀명으로 로고 파일 ID 찾기 헬퍼 함수 (공백 무시 매칭 지원)
+# 팀명으로 로고 파일 찾기 헬퍼 함수 (공백 무시 매칭 지원)
 def find_team_logo_id(team_name, l_map):
     if not team_name or not l_map:
         return None
