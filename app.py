@@ -28,7 +28,7 @@ spreadsheet_id = st.sidebar.text_input(
 )
 
 # 다른 앱에서 쓰시는 폴더 ID나 폴더 이름을 기본값으로 적어두셔도 됩니다 (비워두면 전체 이미지 자동 검색)
-DEFAULT_LOGO_FOLDER = ""
+DEFAULT_LOGO_FOLDER = "https://drive.google.com/drive/folders/https://drive.google.com/drive/folders/1jhKbgnrWEK3t0rQuP9OYTryYrI56Ujye?usp=drive_link"
 logo_folder_input = st.sidebar.text_input(
     "📁 구단 로고 폴더 ID (또는 폴더명)",
     value=DEFAULT_LOGO_FOLDER,
