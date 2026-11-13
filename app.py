@@ -8,7 +8,12 @@ from database import (
     load_drive_logo_map,
     get_logo_base64_src
 )
-from infographics import generate_naver_injury_infographic, render_clipboard_component
+from infographics import (
+    generate_naver_injury_infographic,
+    render_clipboard_component,
+    generate_cafe_dark_infographic,
+    render_cafe_image_component
+)
 
 # 페이지 설정 (와이드 모드)
 st.set_page_config(
@@ -27,7 +32,6 @@ spreadsheet_id = st.sidebar.text_input(
     type="default"
 )
 
-# 요청하신 구글 드라이브 구단 로고 폴더 링크 기본 고정 적용
 DEFAULT_LOGO_FOLDER = "https://drive.google.com/drive/folders/1jhKbgnrWEK3t0rQuP9OYTryYrI56Ujye?usp=drive_link"
 logo_folder_input = st.sidebar.text_input(
     "📁 구단 로고 폴더 ID (또는 폴더 링크)",
@@ -78,7 +82,6 @@ def extract_month_day(date_str):
         return m * 100 + d
     return None
 
-# 팀명으로 로고 파일 찾기 헬퍼 함수 (공백 무시 매칭 지원)
 def find_team_logo_id(team_name, l_map):
     if not team_name or not l_map:
         return None
@@ -195,7 +198,6 @@ if not df_stats_red.empty:
             all_known_teams.update(df_stats_red[col_cand].dropna().unique())
             break
 
-# 로고 폴더에 있는 한글 팀명들도 자동으로 팀 선택 목록에 추가!
 if logo_map:
     all_known_teams.update(logo_map.keys())
 
@@ -204,7 +206,7 @@ all_known_teams.update(fallback_teams)
 
 team_options = sorted([str(t).strip() for t in all_known_teams if str(t).strip() and str(t).strip() != "nan"])
 
-# 구단 로고 매칭 현황판 (적용된 팀 vs 미등록 팀 한눈에 확인)
+# 구단 로고 매칭 현황판
 matched_teams = [t for t in team_options if find_team_logo_id(t, logo_map)]
 unmatched_teams = [t for t in team_options if not find_team_logo_id(t, logo_map)]
 
@@ -219,7 +221,7 @@ with st.expander(f"🛡️ 구단 로고 파일 적용 현황 확인 (드라이�
         st.write(", ".join(unmatched_teams) if unmatched_teams else "모든 팀에 로고가 적용되어 있습니다! 🎉")
 
 # =========================================================
-# 🎯 팀 & 대회(리그/챔스/에레디비지에/챔피언십/직접입력) 멀티 필터 영역
+# 🎯 팀 & 대회 멀티 필터 영역
 # =========================================================
 c_s1, c_s2, c_s3 = st.columns([1.1, 1.2, 1.2])
 default_inj_idx = 0
@@ -228,7 +230,6 @@ if "selected_scan_match" in st.session_state and st.session_state.selected_scan_
     if sm["home"] in team_options:
         default_inj_idx = team_options.index(sm["home"])
 
-# 팀 드롭다운에서 로고 보유 여부를 아이콘(🛡️)으로 직관적 표시
 selected_team = c_s1.selectbox(
     "1️⃣ 조회할 팀명 선택 (🛡️=로고보유)",
     team_options,
@@ -237,20 +238,17 @@ selected_team = c_s1.selectbox(
     key="inj_filter_team"
 )
 
-# 1) 기본 제공 대회 프리셋 (챔피언십 및 에레디비지에 포함)
 base_competitions = [
     "PL", "EFL", "챔피언십", "Eredivisie", "에레디비지에",
     "UCL", "UEL", "UECL",
     "LaLiga", "SerieA", "Bundesliga", "Ligue1", "컵대회"
 ]
 
-# 2) 현재 선택한 팀에 이미 등록된 대회(리그명) 최우선 추출
 team_competitions = []
 if not df_injuries.empty and team_col_name and league_col_name:
     team_rows = df_injuries[df_injuries[team_col_name].astype(str).str.strip() == str(selected_team).strip()]
     team_competitions = [str(x).strip() for x in team_rows[league_col_name].dropna().unique() if str(x).strip() and str(x).strip() != "nan"]
 
-# 3) 시트 전체(부상자명단 + 경기내용)에 한 번이라도 입력된 모든 리그명 자동 추출
 sheet_all_competitions = []
 if not df_injuries.empty and league_col_name:
     sheet_all_competitions += [str(x).strip() for x in df_injuries[league_col_name].dropna().unique() if str(x).strip() and str(x).strip() != "nan"]
@@ -277,7 +275,6 @@ if selected_comp_raw == "➕ 직접 입력 (새 대회/리그)":
 else:
     selected_comp = selected_comp_raw
 
-# 대회 선택 시 인포그래픽 상단 기준 표기 자동 추천
 auto_title_map = {
     "PL": "잉글랜드 1부리그(PL) 기록",
     "EPL": "잉글랜드 1부리그(PL) 기록",
@@ -309,7 +306,7 @@ inj_league_title = c_s3.text_input("3️⃣ 카드 리포트 기준 표기", val
 ROLE_OPTIONS = ["주전", "핵심 주전", "로테이션", "백업", "유망주", "기타"]
 
 # =========================================================
-# 🛠️ 선수 관리 영역 (3단 와이드 배치: 왼쪽 추가 칸을 1.8배로 대폭 확대)
+# 🛠️ 선수 관리 영역 (3단 와이드 배치)
 # =========================================================
 col_btn1, col_btn2, col_btn3 = st.columns([1.8, 1.2, 1.0])
 
@@ -398,7 +395,7 @@ with col_btn2:
             else:
                 dst_comp = dst_comp_sel
 
-            reset_stats = st.checkbox("출전/골/도움 스탯 0으로 초기화해서 복사", value=True, help="체크하면 새 대회 스탯을 0선발 0교체 0골 0도움으로 깔끔하게 비워서 생성합니다.")
+            reset_stats = st.checkbox("출전/골/도움 스탯 0으로 초기화해서 복사", value=True)
 
             if st.button("🚀 명단 일괄 복제하기", type="primary", use_container_width=True):
                 if not dst_comp.strip():
@@ -436,7 +433,7 @@ with col_btn2:
                                 ws_inj.append_rows(new_rows_to_append, value_input_option="USER_ENTERED")
                                 time.sleep(0.3)
                                 st.cache_data.clear()
-                                st.success(f"🎉 [{src_comp}] 명단 {len(new_rows_to_append)}명이 [{dst_comp}] 대회용으로 복제되었습니다! 상단에서 [{dst_comp}]를 선택해 스탯만 수정하세요.")
+                                st.success(f"🎉 [{src_comp}] 명단 {len(new_rows_to_append)}명이 [{dst_comp}] 대회용으로 복제되었습니다!")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"복제 실패: {e}")
@@ -604,7 +601,7 @@ with col_btn3:
 st.markdown("---")
 
 # =========================================================
-# 📊 선택된 팀 & 선택된 대회 기준 결장자 필터링 및 로고 카드 출력
+# 📊 선택된 팀 & 대회 기준 결장자 필터링 및 2개 탭(블로그용 / 카페용) 출력
 # =========================================================
 filtered_df = pd.DataFrame()
 if not df_injuries.empty and team_col_name:
@@ -635,21 +632,34 @@ if not filtered_df.empty and reason_col and reason_col in filtered_df.columns:
 elif not filtered_df.empty:
     confirmed_players = filtered_df.to_dict("records")
 
-# 현재 선택된 팀의 로고 Base64 데이터 가져오기
 matched_logo_id = find_team_logo_id(selected_team, logo_map)
 team_logo_base64 = get_logo_base64_src(matched_logo_id) if matched_logo_id else ""
 
-logo_status_badge = "🛡️ 로고 자동 적용됨" if team_logo_base64 else "⚠️ 드라이브 로고 미등록 (텍스트 헤더)"
+logo_status_badge = "🛡️ 카페용 다크 카드 로고 연동됨" if team_logo_base64 else "⚠️ 로고 미등록 (기본 아이콘 표시)"
 st.subheader(f"📋 [{selected_team}] ({selected_comp}) 결장자 현황 (총 {len(filtered_df)}명) — {logo_status_badge}")
 
-with st.expander("📊 / 📋 네이버 블로그/카페용 결장자 인포그래픽 도표 복사 (추천 ⭐)", expanded=True):
-    st.markdown(f"##### 🌟 [네이버 블로그/카페 전용] [{selected_team}] 결장자 리포트 카드 ({selected_comp})")
-    st.caption("파란색 [📸 로고 포함 고화질 이미지로 복사] 버튼을 누르면 로고와 디자인이 100% 유지된 이미지로 복사됩니다. 블로그 글쓰기에서 Ctrl+V를 누르세요!")
+# 탭 1: 네이버 블로그용 (기존 텍스트 표) / 탭 2: 카페용 (고화질 다크 스카우팅 이미지)
+tab_blog, tab_cafe = st.tabs([
+    "📝 네이버 블로그용 (텍스트 표 원클릭 복사)",
+    "🎨 카페/SNS용 (로고 포함 고화질 다크 이미지 복사 ⭐)"
+])
 
+with tab_blog:
+    st.markdown(f"##### 📝 [네이버 블로그 전용] [{selected_team}] 텍스트 표 리포트 ({selected_comp})")
+    st.caption("기존처럼 이미지 없이 순수 텍스트와 표 서식으로만 복사되어 네이버 블로그 검색 노출(SEO)에 최적화되어 있습니다.")
     naver_inj_html = generate_naver_injury_infographic(
+        selected_team, inj_league_title, confirmed_players, doubt_players
+    )
+    render_clipboard_component(naver_inj_html, "t5_clip_blog", height=540)
+
+with tab_cafe:
+    st.markdown(f"##### 🎨 [카페/SNS 전용] [{selected_team}] 다크 스카우팅 리포트 카드 ({selected_comp})")
+    st.caption("구단 로고와 전력 누수 요약 대시보드가 포함된 고화질 다크 테마 카드입니다. 파란색 버튼을 누른 뒤 카페 글쓰기에서 Ctrl+V를 누르세요!")
+    cafe_dark_html = generate_cafe_dark_infographic(
         selected_team, inj_league_title, confirmed_players, doubt_players, logo_src=team_logo_base64
     )
-    render_clipboard_component(naver_inj_html, "t5_clip", height=580, team_name=selected_team)
+    dynamic_height = max(580, 380 + len(filtered_df) * 75)
+    render_cafe_image_component(cafe_dark_html, "t5_clip_cafe", height=dynamic_height, team_name=selected_team)
 
 with st.expander("🔍 시트에 저장된 원본 데이터 표 보기"):
     if not filtered_df.empty:
