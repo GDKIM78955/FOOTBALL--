@@ -16,8 +16,7 @@ from infographics import (
 )
 
 # =========================================================
-# 🎨 [내장 함수] 카페/SNS용 다크 스카우팅 카드 & 이미지 복사기
-# (infographics.py 버전에 상관없이 에러가 나지 않도록 직접 내장)
+# 🎨 [내장 함수] 카페/SNS용 다크 스카우팅 카드 & 외곽 흰 배경 자동 투명화 엔진
 # =========================================================
 def get_role_badge_html_dark(role):
     role_str = str(role).strip() if role else "-"
@@ -60,15 +59,16 @@ def generate_cafe_dark_infographic(team_name, league_title, confirmed_list, doub
         except Exception:
             pass
 
+    # 다크 슬롯 배경(#0f172a) 적용 + class="auto-transparent-logo"로 외곽 흰색만 자동 제거
     if logo_src:
         logo_box_html = f"""
-        <div style="width: 68px; height: 68px; background: #ffffff; border: 2px solid #38bdf8; border-radius: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(56, 189, 248, 0.25); padding: 6px; box-sizing: border-box; flex-shrink: 0;">
-            <img src="{logo_src}" style="max-width: 54px; max-height: 54px; object-fit: contain; display: block;" />
+        <div style="width: 68px; height: 68px; background: #0f172a; border: 2px solid #38bdf8; border-radius: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(56, 189, 248, 0.25); padding: 6px; box-sizing: border-box; flex-shrink: 0;">
+            <img class="auto-transparent-logo" src="{logo_src}" style="max-width: 54px; max-height: 54px; object-fit: contain; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));" />
         </div>
         """
     else:
         logo_box_html = """
-        <div style="width: 68px; height: 68px; background: #1e293b; border: 2px solid #38bdf8; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 30px; flex-shrink: 0;">
+        <div style="width: 68px; height: 68px; background: #0f172a; border: 2px solid #38bdf8; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 30px; flex-shrink: 0;">
             🛡️
         </div>
         """
@@ -273,6 +273,105 @@ def render_cafe_image_component(html_content, component_id, height=680, team_nam
             <div id="cafe-capture-area">{html_content}</div>
         </div>
         <script>
+            // 🌟 외곽 흰색 배경만 추적하여 투명화하는 Flood-Fill 알고리즘 (로고 내부 흰색 100% 보존)
+            function removeOuterWhiteBackground() {{
+                const imgs = document.querySelectorAll('img.auto-transparent-logo');
+                imgs.forEach(img => {{
+                    const process = () => {{
+                        if (img.dataset.processed === "true") return;
+                        const w = img.naturalWidth || img.width;
+                        const h = img.naturalHeight || img.height;
+                        if (!w || !h) return;
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+
+                        const imgData = ctx.getImageData(0, 0, w, h);
+                        const data = imgData.data;
+                        const visited = new Uint8Array(w * h);
+                        const queue = [];
+
+                        // 밝은 흰색/연회색 배경인지 판별 (R, G, B 모두 232 이상)
+                        const isWhiteBg = (idx) => {{
+                            const p = idx * 4;
+                            return data[p + 3] > 0 && data[p] >= 232 && data[p + 1] >= 232 && data[p + 2] >= 232;
+                        }};
+
+                        // 이미지의 상하좌우 바깥 테두리 픽셀에서 시작점 탐색
+                        for (let x = 0; x < w; x++) {{
+                            let topIdx = x;
+                            let botIdx = (h - 1) * w + x;
+                            if (isWhiteBg(topIdx)) {{ visited[topIdx] = 1; queue.push(topIdx); }}
+                            if (isWhiteBg(botIdx)) {{ visited[botIdx] = 1; queue.push(botIdx); }}
+                        }}
+                        for (let y = 0; y < h; y++) {{
+                            let leftIdx = y * w;
+                            let rightIdx = y * w + (w - 1);
+                            if (!visited[leftIdx] && isWhiteBg(leftIdx)) {{ visited[leftIdx] = 1; queue.push(leftIdx); }}
+                            if (!visited[rightIdx] && isWhiteBg(rightIdx)) {{ visited[rightIdx] = 1; queue.push(rightIdx); }}
+                        }}
+
+                        // 바깥에서 연결된 흰색 배경만 따라가며 투명화 (안쪽 흰색은 외곽선에 막혀 보호됨)
+                        let head = 0;
+                        while (head < queue.length) {{
+                            const curr = queue[head++];
+                            data[curr * 4 + 3] = 0; // 완전 투명화
+
+                            const cx = curr % w;
+                            const cy = (curr / w) | 0;
+
+                            if (cx > 0) {{
+                                const n = curr - 1;
+                                if (!visited[n] && isWhiteBg(n)) {{ visited[n] = 1; queue.push(n); }}
+                            }}
+                            if (cx < w - 1) {{
+                                const n = curr + 1;
+                                if (!visited[n] && isWhiteBg(n)) {{ visited[n] = 1; queue.push(n); }}
+                            }}
+                            if (cy > 0) {{
+                                const n = curr - w;
+                                if (!visited[n] && isWhiteBg(n)) {{ visited[n] = 1; queue.push(n); }}
+                            }}
+                            if (cy < h - 1) {{
+                                const n = curr + w;
+                                if (!visited[n] && isWhiteBg(n)) {{ visited[n] = 1; queue.push(n); }}
+                            }}
+                        }}
+
+                        // 외곽 경계선(Anti-aliasing)의 미세한 하얀 테두리를 부드럽게 반투명 처리
+                        for (let y = 1; y < h - 1; y++) {{
+                            for (let x = 1; x < w - 1; x++) {{
+                                const idx = y * w + x;
+                                if (!visited[idx] && data[idx * 4 + 3] > 0) {{
+                                    if (visited[idx - 1] || visited[idx + 1] || visited[idx - w] || visited[idx + w]) {{
+                                        const r = data[idx * 4], g = data[idx * 4 + 1], b = data[idx * 4 + 2];
+                                        if (r >= 205 && g >= 205 && b >= 205) {{
+                                            data[idx * 4 + 3] = 90;
+                                        }}
+                                    }}
+                                }}
+                            }}
+                        }}
+
+                        ctx.putImageData(imgData, 0, 0);
+                        img.dataset.processed = "true";
+                        img.src = canvas.toDataURL('image/png');
+                    }};
+
+                    if (img.complete) {{
+                        process();
+                    }} else {{
+                        img.onload = process;
+                    }}
+                }});
+            }}
+
+            window.addEventListener('DOMContentLoaded', removeOuterWhiteBackground);
+            setTimeout(removeOuterWhiteBackground, 150);
+
             async function copyCafeImage() {{
                 const btn = document.getElementById('cafeImgCopyBtn');
                 const origText = btn.innerText;
@@ -285,7 +384,7 @@ def render_cafe_image_component(html_content, component_id, height=680, team_nam
                             const item = new ClipboardItem({{ 'image/png': blob }});
                             await navigator.clipboard.write([item]);
                             btn.innerText = origText;
-                            alert('🎉 고화질 다크 스카우팅 카드가 클립보드에 복사되었습니다!\\n카페나 블로그 글쓰기 창에서 [Ctrl + V]를 누르세요.');
+                            alert('🎉 배경이 투명화된 고화질 다크 스카우팅 카드가 복사되었습니다!\\n카페나 블로그 글쓰기 창에서 [Ctrl + V]를 누르세요.');
                         }} catch (err) {{
                             btn.innerText = origText;
                             alert('클립보드 권한이 제한되었습니다. 우측의 [📥 PNG 파일 저장] 버튼을 이용해 주세요.');
@@ -296,6 +395,7 @@ def render_cafe_image_component(html_content, component_id, height=680, team_nam
                     alert('이미지 변환 중 오류 발생: ' + e);
                 }}
             }}
+
             async function downloadCafeImage() {{
                 const target = document.getElementById('cafe-capture-area');
                 const canvas = await html2canvas(target, {{ scale: 2, useCORS: true, backgroundColor: '#0b1120' }});
@@ -931,7 +1031,7 @@ elif not filtered_df.empty:
 matched_logo_id = find_team_logo_id(selected_team, logo_map)
 team_logo_base64 = get_logo_base64_src(matched_logo_id) if matched_logo_id else ""
 
-logo_status_badge = "🛡️ 카페용 다크 카드 로고 연동됨" if team_logo_base64 else "⚠️ 로고 미등록 (기본 아이콘 표시)"
+logo_status_badge = "🛡️ 카페용 다크 카드 로고 연동됨 (외곽 배경 자동 투명화)" if team_logo_base64 else "⚠️ 로고 미등록 (기본 아이콘 표시)"
 st.subheader(f"📋 [{selected_team}] ({selected_comp}) 결장자 현황 (총 {len(filtered_df)}명) — {logo_status_badge}")
 
 # 탭 1: 네이버 블로그용 (기존 텍스트 표) / 탭 2: 카페용 (고화질 다크 스카우팅 이미지)
@@ -950,7 +1050,7 @@ with tab_blog:
 
 with tab_cafe:
     st.markdown(f"##### 🎨 [카페/SNS 전용] [{selected_team}] 다크 스카우팅 리포트 카드 ({selected_comp})")
-    st.caption("구단 로고와 전력 누수 요약 대시보드가 포함된 고화질 다크 테마 카드입니다. 파란색 버튼을 누른 뒤 카페 글쓰기에서 Ctrl+V를 누르세요!")
+    st.caption("구단 로고의 바깥 흰색 배경만 자동으로 투명화하여 다크 슬롯에 자연스럽게 합성합니다. 파란색 버튼을 누른 뒤 카페 글쓰기에서 Ctrl+V를 누르세요!")
     cafe_dark_html = generate_cafe_dark_infographic(
         selected_team, inj_league_title, confirmed_players, doubt_players, logo_src=team_logo_base64
     )
